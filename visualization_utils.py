@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-from matplotlib.widgets import Button
+from matplotlib.widgets import Button, Slider
 
 # 确保中文显示正常
 plt.rcParams['font.sans-serif'] = ['SimHei']  # 用来正常显示中文标签
@@ -12,65 +12,44 @@ class BaseModelVisualizer:
     机器学习模型可视化的基类
     提供通用的可视化功能，可被不同的算法模型继承和扩展
     """
-    def __init__(self):
-        # 数据相关属性
-        self.X = None
-        self.y = None
-        self.X_train = None
-        self.X_test = None
-        self.y_train = None
-        self.y_test = None
-        
-        # 模型相关属性
-        self.model = None
-        
-        # 可视化相关属性
-        self.fig = None
-        self.ax1 = None
-        self.ax2 = None
-        self.step = 0
-        self.max_steps = 30  # 默认最大训练步数
-        self.test_sample_index = 0
-        self.train_iterations = []
-        self.correct_predictions = 0  # 记录正确预测的数量
-        self._is_prediction_complete = False  # 标记预测是否完成
-        
-        # 动画相关属性
-        self.animation = None
-        
-        # 动画状态控制
-        self._is_training_complete = False
-        self._is_paused = False
-        self._manual_step_mode = True  # 默认启用手动步进模式
-        self._step_forward_required = False  # 标记是否需要前进一步
-        
-        # 特征名称
-        self.feature_names = None
+    # 注意：删除了重复的__init__方法定义，保留第358行开始的完整版本
     
     def initialize_visualization(self):
         """初始化可视化环境"""
-        # 创建图形，为按钮留出空间
-        self.fig, (self.ax1, self.ax2) = plt.subplots(1, 2, figsize=(15, 8))
-        self.fig.subplots_adjust(bottom=0.2)  # 增加底部边距，为按钮留出空间
+        # 创建图形，为底部表格留出空间
+        self.fig, (self.ax1, self.ax2) = plt.subplots(1, 2, figsize=(15, 9))
+        self.fig.subplots_adjust(top=0.9, bottom=0.2, left=0.05, right=0.95)  # 调整布局，底部留出更多空间
         self.fig.suptitle('决策树模型执行过程可视化', fontsize=16)
         
         # 绑定按键事件处理函数
         self.fig.canvas.mpl_connect('key_press_event', self._on_key_press)
         
-        # 添加控制按钮
-        self._add_control_buttons()
+        # 添加滚动事件处理
+        self.fig.canvas.mpl_connect('scroll_event', self._on_scroll)
+        
+        # 初始化滚动相关属性
+        self._zoom_factor = 1.0
+        self._xlims = None
+        self._ylims = None
+        
+        # 为matplotlib工具栏添加按钮
+        self._add_toolbar_buttons()
+        
+        # 添加测试结果表格的轴域
+        self.table_ax = self.fig.add_axes([0.1, 0.05, 0.8, 0.1])
+        self.table_ax.axis('off')
         
         return self.fig, self.ax1, self.ax2
     
-    def _add_control_buttons(self):
-        """添加控制按钮"""
-        # 创建前进一步按钮（移到左下角）
-        self.ax_next_step = self.fig.add_axes([0.05, 0.05, 0.15, 0.075])
+    def _add_toolbar_buttons(self):
+        """添加控制按钮到图形中，不创建自定义菜单栏"""
+        # 创建前进一步按钮
+        self.ax_next_step = self.fig.add_axes([0.40, 0.92, 0.10, 0.03])
         self.btn_next_step = Button(self.ax_next_step, '下一步')
         self.btn_next_step.on_clicked(self._on_next_step_clicked)
         
-        # 创建自动播放/暂停按钮（移到左下角，在下一步按钮旁边）
-        self.ax_play_pause = self.fig.add_axes([0.25, 0.05, 0.15, 0.075])
+        # 创建自动播放/暂停按钮
+        self.ax_play_pause = self.fig.add_axes([0.55, 0.92, 0.10, 0.03])
         self.btn_play_pause = Button(self.ax_play_pause, '自动播放')
         self.btn_play_pause.on_clicked(self._on_play_pause_clicked)
     
@@ -152,6 +131,8 @@ class BaseModelVisualizer:
         空格键暂停/继续动画
         q键退出动画
         n键前进一步
+        +键放大
+        -键缩小
         """
         if event.key == ' ':
             # 空格键暂停/继续动画
@@ -170,6 +151,104 @@ class BaseModelVisualizer:
             # 确保按钮状态更新
             if hasattr(self, 'btn_play_pause'):
                 self.btn_play_pause.label.set_text('自动播放')
+        elif event.key == '+':
+            # 放大
+            self._zoom(1.1)
+        elif event.key == '-':
+            # 缩小
+            self._zoom(0.9)
+        # 刷新显示
+        self.fig.canvas.draw_idle()
+    
+    def _on_scroll(self, event):
+        """
+        处理鼠标滚轮事件，实现缩放功能
+        """
+        # 判断滚动方向
+        if event.button == 'up':
+            # 向上滚动，放大
+            self._zoom(1.1)
+        elif event.button == 'down':
+            # 向下滚动，缩小
+            self._zoom(0.9)
+        # 刷新显示
+        self.fig.canvas.draw_idle()
+    
+    def _zoom(self, factor):
+        """
+        缩放图表
+        
+        参数:
+        factor: 缩放因子，大于1为放大，小于1为缩小
+        """
+        if self._xlims is None or self._ylims is None:
+            # 初始化极限值
+            if self.X is not None:
+                self._xlims = [self.X[:, 0].min() - 1, self.X[:, 0].max() + 1]
+                self._ylims = [self.X[:, 1].min() - 1, self.X[:, 1].max() + 1]
+            else:
+                return
+        
+        # 限制缩放范围
+        new_factor = self._zoom_factor * factor
+        if new_factor < 0.1 or new_factor > 5.0:
+            return
+        
+        self._zoom_factor = new_factor
+        
+        # 更新两个子图的缩放
+        for ax in [self.ax1, self.ax2]:
+            # 获取当前中心
+            center_x = (self._xlims[0] + self._xlims[1]) / 2
+            center_y = (self._ylims[0] + self._ylims[1]) / 2
+            
+            # 计算新的范围
+            width = (self._xlims[1] - self._xlims[0]) * factor
+            height = (self._ylims[1] - self._ylims[0]) * factor
+            
+            # 设置新的极限值
+            ax.set_xlim(center_x - width/2, center_x + width/2)
+            ax.set_ylim(center_y - height/2, center_y + height/2)
+    
+    def _show_prediction_summary(self):
+        """使用表格显示预测结果摘要"""
+        # 计算准确率
+        if self.X_test is not None and len(self.X_test) > 0:
+            accuracy = (self.correct_predictions / len(self.X_test)) * 100
+        else:
+            accuracy = 0
+        
+        # 创建表格数据
+        data = [
+            ['总样本数', len(self.X_test) if self.X_test is not None else 0],
+            ['正确预测', self.correct_predictions],
+            ['错误预测', len(self.X_test) - self.correct_predictions if self.X_test is not None else 0],
+            ['准确率', f'{accuracy:.2f}%']
+        ]
+        
+        # 清除之前的表格
+        self.table_ax.clear()
+        self.table_ax.axis('off')
+        
+        # 创建表格
+        table = self.table_ax.table(
+            cellText=data,
+            colLabels=['指标', '值'],
+            cellLoc='center',
+            loc='center',
+            bbox=[0, 0, 1, 1]
+        )
+        
+        # 美化表格
+        table.auto_set_font_size(False)
+        table.set_fontsize(10)
+        table.scale(1, 1.5)
+        
+        # 设置表格标题
+        self.table_ax.set_title('测试结果统计', fontsize=12)
+        
+        # 刷新显示
+        self.fig.canvas.draw_idle()
     
     def set_data(self, X, y, X_train=None, X_test=None, y_train=None, y_test=None, feature_names=None):
         """设置数据"""
@@ -288,11 +367,6 @@ class BaseModelVisualizer:
         返回:
         artists: 需要更新的Artist对象列表，用于blitting优化
         """
-        # 添加调试信息
-        print(f"[调试] 更新帧: {frame}")
-        print(f"[调试] 当前状态 - 训练完成: {self._is_training_complete}, 预测完成: {self._is_prediction_complete}")
-        print(f"[调试] 当前步骤: {self.step}, 测试样本索引: {self.test_sample_index}")
-        
         # 确保按钮状态正确更新
         if hasattr(self, 'btn_play_pause'):
             self.btn_play_pause.label.set_text('自动播放' if self._manual_step_mode else '暂停')
@@ -307,18 +381,15 @@ class BaseModelVisualizer:
         
         # 如果不需要更新，直接返回
         if not do_update:
-            print("[调试] 不执行更新，返回当前artists")
             return self._get_animated_artists()
             
         # 预测完成后不清除图形，保持结果显示
         if not self._is_prediction_complete:
             # 对于预测阶段，只有在开始新批次时才清除图形
             if self._is_training_complete and self._prediction_batch_processed == 0:
-                print("[调试] 开始新批次，清除当前绘图")
                 self.ax1.clear()
                 self.ax2.clear()
             elif not self._is_training_complete:
-                print("[调试] 清除当前绘图")
                 self.ax1.clear()
                 self.ax2.clear()
         
@@ -652,7 +723,7 @@ class BaseModelVisualizer:
         
         # 避免tight_layout覆盖按钮区域
         # plt.tight_layout()
-        plt.subplots_adjust(top=0.92, bottom=0.2)  # 确保底部有足够空间
+        plt.subplots_adjust(top=0.85, bottom=0.1, left=0.05, right=0.95)  # 确保顶部有菜单栏空间，底部有足够内容空间
         
         # 显示图形
         plt.show()
@@ -660,10 +731,16 @@ class BaseModelVisualizer:
     def _setup_axes_limits(self, ax):
         """设置坐标轴范围"""
         if self.X is not None:
-            x_min, x_max = self.X[:, 0].min() - 1, self.X[:, 0].max() + 1
-            y_min, y_max = self.X[:, 1].min() - 1, self.X[:, 1].max() + 1
-            ax.set_xlim(x_min, x_max)
-            ax.set_ylim(y_min, y_max)
+            # 如果是初始设置或用户没有手动缩放，使用默认范围
+            if self._zoom_factor == 1.0 or self._xlims is None or self._ylims is None:
+                x_min, x_max = self.X[:, 0].min() - 1, self.X[:, 0].max() + 1
+                y_min, y_max = self.X[:, 1].min() - 1, self.X[:, 1].max() + 1
+                ax.set_xlim(x_min, x_max)
+                ax.set_ylim(y_min, y_max)
+                # 保存初始极限值
+                self._xlims = [x_min, x_max]
+                self._ylims = [y_min, y_max]
+            # 否则保持用户的缩放设置
             
             # 设置坐标轴标签，优先使用特征名称
             if self.feature_names and len(self.feature_names) >= 2:
@@ -672,3 +749,11 @@ class BaseModelVisualizer:
             else:
                 ax.set_xlabel('特征 1')
                 ax.set_ylabel('特征 2')
+            
+            # 添加提示信息
+            if ax == self.ax1:
+                ax.text(0.95, 0.95, '使用鼠标滚轮缩放\n或按 +/- 键缩放', 
+                        transform=ax.transAxes, 
+                        fontsize=9, 
+                        bbox=dict(facecolor='white', alpha=0.7),
+                        ha='right', va='top')

@@ -1,8 +1,9 @@
 import numpy as np
 from sklearn.model_selection import train_test_split
-from data_generation import load_loan_approval_data
+from data_generation import load_loan_approval_data, load_linear_regression_data
 from strategies.decision_tree_strategy import DecisionTreeStrategy
 from strategies.logistic_regression_strategy import LogisticRegressionStrategy
+from strategies.linear_regression_strategy import LinearRegressionStrategy
 
 # 确保中文显示正常
 import matplotlib.pyplot as plt
@@ -11,8 +12,8 @@ plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
 
 # ============== 系统全局配置 ==============
 # 1. 模型选择配置
-# MODEL_TYPE 可选值："decision_tree" 或 "logistic_regression"
-MODEL_TYPE = "logistic_regression"  # 默认演示决策树模型
+# MODEL_TYPE 可选值："decision_tree"、"logistic_regression" 或 "linear_regression"
+MODEL_TYPE = "linear_regression"  # 默认演示线性回归模型
 # 2. 执行模式配置
 # AUTO_RUN 控制是否自动运行动画，无需手动点击"开始"按钮
 # True: 自动开始运行动画
@@ -37,9 +38,20 @@ LOGISTIC_REGRESSION_MAX_STEPS = 15
 # LOGISTIC_REGRESSION_LEARNING_RATE 逻辑回归的学习率
 LOGISTIC_REGRESSION_LEARNING_RATE = 0.01
 
-# 6. 数据集配置
-# DATA_FILE_PATH 数据集文件路径
-DATA_FILE_PATH = 'data/loan_approval_data.csv'
+# 6. 线性回归特定配置
+# LINEAR_REGRESSION_MAX_STEPS 线性回归训练的最大步数
+LINEAR_REGRESSION_MAX_STEPS = 20
+# LINEAR_REGRESSION_LEARNING_RATE 线性回归的学习率
+LINEAR_REGRESSION_LEARNING_RATE = 0.01
+# LINEAR_REGRESSION_NORMALIZE 是否标准化特征
+LINEAR_REGRESSION_NORMALIZE = True
+
+# 7. 数据集配置
+# 根据模型类型自动选择数据集
+if MODEL_TYPE.lower() == "linear_regression":
+    DATA_FILE_PATH = 'data/house_price_data.csv'
+else:
+    DATA_FILE_PATH = 'data/loan_approval_data.csv'
 # TEST_SIZE 测试集比例
 TEST_SIZE = 0.2
 # RANDOM_STATE 随机种子，保证结果可复现
@@ -57,7 +69,7 @@ class ModelStrategyFactory:
         创建指定类型的模型策略
         
         参数:
-        - model_type: 模型类型，"decision_tree"或"logistic_regression"
+        - model_type: 模型类型，"decision_tree"、"logistic_regression"或"linear_regression"
         
         返回:
         - ModelStrategy 实例
@@ -66,6 +78,8 @@ class ModelStrategyFactory:
             return DecisionTreeStrategy()
         elif model_type.lower() == "logistic_regression":
             return LogisticRegressionStrategy()
+        elif model_type.lower() == "linear_regression":
+            return LinearRegressionStrategy()
         else:
             raise ValueError(f"不支持的模型类型: {model_type}")
 
@@ -104,10 +118,16 @@ def main():
             'max_depth': DECISION_TREE_MAX_DEPTH,
             'max_steps': DECISION_TREE_MAX_STEPS
         })
-    else:  # logistic_regression
+    elif MODEL_TYPE.lower() == "logistic_regression":
         strategy_config.update({
             'max_steps': LOGISTIC_REGRESSION_MAX_STEPS,
             'learning_rate': LOGISTIC_REGRESSION_LEARNING_RATE
+        })
+    else:  # linear_regression
+        strategy_config.update({
+            'max_steps': LINEAR_REGRESSION_MAX_STEPS,
+            'learning_rate': LINEAR_REGRESSION_LEARNING_RATE,
+            'normalize_features': LINEAR_REGRESSION_NORMALIZE
         })
     
     # 初始化策略
@@ -115,21 +135,46 @@ def main():
     
     # 从CSV文件加载数据
     print("从CSV文件加载数据...")
-    X, y, feature_names, target_names = load_loan_approval_data(file_path=DATA_FILE_PATH)
-    
-    # 打印数据集统计信息
-    print(f"数据集包含 {len(X)} 个申请样本")
-    approval_rate = np.mean(y) * 100
-    print(f"批准率: {approval_rate:.1f}%")
-    avg_income = np.mean(X[:, 0])
-    avg_credit = np.mean(X[:, 1])
-    print(f"平均收入: {int(avg_income):,} 元")
-    print(f"平均信用评分: {avg_credit:.1f}")
-    
-    # 划分训练集和测试集
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE, stratify=y
-    )
+    if MODEL_TYPE.lower() == "linear_regression":
+        X, y, feature_names, target_name = load_linear_regression_data(file_path=DATA_FILE_PATH)
+        
+        # 打印回归数据集统计信息
+        print(f"数据集包含 {len(X)} 个样本")
+        print(f"特征: {', '.join(feature_names)}")
+        print(f"目标变量: {target_name}")
+        print(f"{target_name}统计:")
+        print(f"  平均值: {np.mean(y):.2f}")
+        print(f"  最小值: {np.min(y):.2f}")
+        print(f"  最大值: {np.max(y):.2f}")
+        print(f"  标准差: {np.std(y):.2f}")
+        
+        # 对于回归任务，target_names 设为 None
+        target_names = None
+    else:
+        X, y, feature_names, target_names = load_loan_approval_data(file_path=DATA_FILE_PATH)
+        
+        # 打印分类数据集统计信息
+        print(f"数据集包含 {len(X)} 个样本")
+        approval_rate = np.mean(y) * 100
+        print(f"{'批准率' if '批准' in target_names else '正类比例'}: {approval_rate:.1f}%")
+        if len(feature_names) >= 1:
+            avg_feature1 = np.mean(X[:, 0])
+            print(f"{feature_names[0]} 平均值: {avg_feature1:.2f}")
+        if len(feature_names) >= 2:
+            avg_feature2 = np.mean(X[:, 1])
+            print(f"{feature_names[1]} 平均值: {avg_feature2:.2f}")
+   # 划分训练集和测试集
+    print("划分训练集和测试集...")
+    if MODEL_TYPE.lower() == "linear_regression":
+        # 对于回归任务，不使用stratify参数
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE
+        )
+    else:
+        # 对于分类任务，使用stratify参数保持类别比例
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE, stratify=y
+        )
     
     # 创建模型
     print(f"创建{model_name}模型...")
@@ -143,12 +188,14 @@ def main():
     
     # 创建和配置可视化器
     visualizer = strategy.create_visualizer()
-    strategy.configure_visualizer(visualizer, X, y, X_train, X_test, y_train, y_test, feature_names, target_names)
-    
-    # 初始化可视化
-    visualizer.initialize_visualization()
+    if MODEL_TYPE.lower() == "linear_regression":
+        # 对于线性回归，传递单个target_name
+        strategy.configure_visualizer(visualizer, X, y, X_train, X_test, y_train, y_test, feature_names, target_name)
+    else:
+        strategy.configure_visualizer(visualizer, X, y, X_train, X_test, y_train, y_test, feature_names, target_names)
     
     # 运行动画
+    # 注意：run_animation方法内部会自动检查并初始化可视化环境，无需在此处显式调用initialize_visualization()
     print("启动可视化动画...")
     visualizer.run_animation()
     
