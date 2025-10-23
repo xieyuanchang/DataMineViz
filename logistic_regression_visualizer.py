@@ -251,75 +251,78 @@ class LogisticRegressionVisualizer(BaseModelVisualizer):
         """
         绘制训练过程中的信息
         """
-        # 设置子图以显示多个信息
-        gs = ax.figure.add_gridspec(2, 2, height_ratios=[1, 1], width_ratios=[1, 1], hspace=0.4, wspace=0.4)
+        # 清除轴
+        ax.clear()
         
-        # 1. 显示权重和偏置（左上角）
-        ax_weights = ax.figure.add_subplot(gs[0, 0])
+        # 在父级ax内直接绘制信息，避免创建覆盖整个figure的子图
         if self.model is not None:
             weights = self.model.coef_[0]
             intercept = self.model.intercept_[0]
             
-            # 绘制权重柱状图
-            bars = ax_weights.bar([0, 1], weights, color=['blue', 'green'])
-            ax_weights.axhline(y=0, color='black', linestyle='-', linewidth=0.8)
+            # 1. 显示权重和偏置（左上角区域）
+            weights_ax = ax.inset_axes([0.05, 0.55, 0.45, 0.4])
+            bars = weights_ax.bar([0, 1], weights, color=['blue', 'green'])
+            weights_ax.axhline(y=0, color='black', linestyle='-', linewidth=0.8)
             
             # 添加数值标签
             for i, bar in enumerate(bars):
                 height = bar.get_height()
-                ax_weights.text(bar.get_x() + bar.get_width()/2., height, 
+                weights_ax.text(bar.get_x() + bar.get_width()/2., height, 
                               f'{height:.4f}', ha='center', va='bottom' if height > 0 else 'top')
             
             # 添加截距信息
-            ax_weights.text(0.5, 0.95, f'截距: {intercept:.4f}', 
-                          transform=ax_weights.transAxes, ha='center', 
+            weights_ax.text(0.5, 0.95, f'截距: {intercept:.4f}', 
+                          transform=weights_ax.transAxes, ha='center', 
                           bbox=dict(facecolor='white', alpha=0.8))
             
             # 设置刻度标签
-            ax_weights.set_xticks([0, 1])
-            ax_weights.set_xticklabels([f'{self.feature_names[0]}权重', 
-                                      f'{self.feature_names[1]}权重'])
-            ax_weights.set_title('模型参数')
-            ax_weights.grid(True, alpha=0.3)
+            weights_ax.set_xticks([0, 1])
+            weights_ax.set_xticklabels([f'{self.feature_names[0]}权重', 
+                                      f'{self.feature_names[1]}权重'], fontsize=8)
+            weights_ax.set_title('模型参数', fontsize=10)
+            weights_ax.grid(True, alpha=0.3)
         
-        # 2. 显示损失函数曲线（右上角）
-        ax_loss = ax.figure.add_subplot(gs[0, 1])
+        # 2. 显示损失函数曲线（右上角区域）
         if len(self.loss_history) > 0:
-            ax_loss.plot(range(len(self.loss_history)), self.loss_history, 'r-')
-            ax_loss.set_xlabel('训练步数')
-            ax_loss.set_ylabel('损失值')
-            ax_loss.set_title('损失函数曲线')
-            ax_loss.grid(True, alpha=0.3)
+            loss_ax = ax.inset_axes([0.55, 0.55, 0.4, 0.4])
+            loss_ax.plot(range(len(self.loss_history)), self.loss_history, 'r-')
+            loss_ax.set_xlabel('训练步数', fontsize=8)
+            loss_ax.set_ylabel('损失值', fontsize=8)
+            loss_ax.set_title('损失函数曲线', fontsize=10)
+            loss_ax.grid(True, alpha=0.3)
+            loss_ax.tick_params(axis='both', labelsize=8)
         
-        # 3. 显示训练和测试准确率（左下角）
-        ax_accuracy = ax.figure.add_subplot(gs[1, 0])
+        # 3. 显示训练和测试准确率（左下角区域）
         if len(self.train_iterations) > 0:
+            accuracy_ax = ax.inset_axes([0.05, 0.05, 0.45, 0.4])
             iterations = range(len(self.train_iterations))
             train_scores = [item[2] * 100 for item in self.train_iterations]  # 转换为百分比
             test_scores = [item[3] * 100 for item in self.train_iterations]
             
-            ax_accuracy.plot(iterations, train_scores, 'b-', label='训练准确率')
-            ax_accuracy.plot(iterations, test_scores, 'g-', label='测试准确率')
-            ax_accuracy.set_xlabel('训练步数')
-            ax_accuracy.set_ylabel('准确率 (%)')
-            ax_accuracy.set_title('准确率变化')
-            ax_accuracy.legend()
-            ax_accuracy.grid(True, alpha=0.3)
-            ax_accuracy.set_ylim(0, 100)
+            accuracy_ax.plot(iterations, train_scores, 'b-', label='训练准确率')
+            accuracy_ax.plot(iterations, test_scores, 'g-', label='测试准确率')
+            accuracy_ax.set_xlabel('训练步数', fontsize=8)
+            accuracy_ax.set_ylabel('准确率 (%)', fontsize=8)
+            accuracy_ax.set_title('准确率变化', fontsize=10)
+            accuracy_ax.legend(fontsize=8)
+            accuracy_ax.grid(True, alpha=0.3)
+            accuracy_ax.set_ylim(0, 100)
+            accuracy_ax.tick_params(axis='both', labelsize=8)
         
-        # 4. 显示权重变化趋势（右下角）
-        ax_coef_trend = ax.figure.add_subplot(gs[1, 1])
+        # 4. 显示权重变化趋势（右下角区域）
         if len(self.coef_history) > 0:
+            coef_trend_ax = ax.inset_axes([0.55, 0.05, 0.4, 0.4])
             coef1_values = [coef[0, 0] for coef in self.coef_history]
             coef2_values = [coef[0, 1] for coef in self.coef_history]
             
-            ax_coef_trend.plot(range(len(coef1_values)), coef1_values, 'b-', label=f'{self.feature_names[0]}权重')
-            ax_coef_trend.plot(range(len(coef2_values)), coef2_values, 'g-', label=f'{self.feature_names[1]}权重')
-            ax_coef_trend.set_xlabel('训练步数')
-            ax_coef_trend.set_ylabel('权重值')
-            ax_coef_trend.set_title('权重变化趋势')
-            ax_coef_trend.legend()
-            ax_coef_trend.grid(True, alpha=0.3)
+            coef_trend_ax.plot(range(len(coef1_values)), coef1_values, 'b-', label=f'{self.feature_names[0]}权重')
+            coef_trend_ax.plot(range(len(coef2_values)), coef2_values, 'g-', label=f'{self.feature_names[1]}权重')
+            coef_trend_ax.set_xlabel('训练步数', fontsize=8)
+            coef_trend_ax.set_ylabel('权重值', fontsize=8)
+            coef_trend_ax.set_title('权重变化趋势', fontsize=10)
+            coef_trend_ax.legend(fontsize=8)
+            coef_trend_ax.grid(True, alpha=0.3)
+            coef_trend_ax.tick_params(axis='both', labelsize=8)
     
     def _plot_final_model_info(self, ax):
         """
@@ -328,37 +331,32 @@ class LogisticRegressionVisualizer(BaseModelVisualizer):
         if self.model is None:
             return
         
-        # 设置子图布局
-        gs = ax.figure.add_gridspec(2, 1, height_ratios=[1, 1], hspace=0.4)
+        # 清除轴
+        ax.clear()
         
-        # 1. 顶部子图：显示模型公式和最终参数
-        ax_formula = ax.figure.add_subplot(gs[0, 0])
         weights = self.model.coef_[0]
         intercept = self.model.intercept_[0]
         
-        # 清除背景网格
-        ax_formula.grid(False)
-        ax_formula.axis('off')
+        # 1. 在父级ax内显示模型公式（上部区域）
+        formula_ax = ax.inset_axes([0.1, 0.55, 0.8, 0.4])
+        formula_ax.axis('off')
         
         # 构建逻辑回归公式
-        # 线性组合部分
         linear_combination = f"z = {weights[0]:.4f} × {self.feature_names[0]} + {weights[1]:.4f} × {self.feature_names[1]} + {intercept:.4f}"
-        # Sigmoid函数
         sigmoid = "y = 1 / (1 + e^(-z))"
-        # 决策规则
         decision_rule = "如果 y ≥ 0.5，则预测为正类；否则为负类"
         
-        # 显示公式
         formula_text = (f"\n逻辑回归模型公式\n\n"  
                       f"线性组合: {linear_combination}\n"  
                       f"Sigmoid函数: {sigmoid}\n"  
                       f"决策规则: {decision_rule}\n")
         
-        ax_formula.text(0.5, 0.5, formula_text, ha='center', va='center', fontsize=12, 
+        formula_ax.text(0.5, 0.5, formula_text, ha='center', va='center', fontsize=11, 
                        bbox=dict(facecolor='lightyellow', alpha=0.8, boxstyle='round,pad=1'))
         
-        # 2. 底部子图：显示参数详情
-        ax_params = ax.figure.add_subplot(gs[1, 0])
+        # 2. 在父级ax内显示参数详情（下部区域）
+        params_ax = ax.inset_axes([0.1, 0.05, 0.8, 0.4])
+        params_ax.axis('off')
         
         # 创建参数表格
         param_data = [
@@ -370,11 +368,11 @@ class LogisticRegressionVisualizer(BaseModelVisualizer):
         ]
         
         # 绘制表格
-        table = ax_params.table(cellText=param_data, loc='center', cellLoc='center', 
+        table = params_ax.table(cellText=param_data, loc='center', cellLoc='center', 
                                bbox=[0, 0, 1, 1])
         table.auto_set_font_size(False)
-        table.set_fontsize(11)
-        table.scale(1, 1.5)
+        table.set_fontsize(10)
+        table.scale(1, 1.3)
         
         # 设置表头样式
         for (i, j), cell in table.get_celld().items():
@@ -384,9 +382,8 @@ class LogisticRegressionVisualizer(BaseModelVisualizer):
             else:
                 cell.set_edgecolor('#CCCCCC')
         
-        # 隐藏坐标轴
-        ax_params.axis('off')
-        ax_params.set_title('最终模型参数', fontsize=14, pad=10)
+        # 添加标题
+        ax.text(0.5, 0.98, '最终模型参数', ha='center', va='top', fontsize=12, transform=ax.transAxes)
     
     def highlight_prediction_path(self, test_point, pred_class, pred_proba):
         """

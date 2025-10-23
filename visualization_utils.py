@@ -595,7 +595,7 @@ class BaseModelVisualizer:
             self.ax1.set_title('预测完成 - 显示总结信息')
             self.ax2.set_title('预测完成 - 显示总结信息')
     
-    def run_animation(self, frames=None, interval=1500, blit=False, auto_run=True, auto_close=True):
+    def run_animation(self, frames=None, interval=1500, blit=False):
         """
         运行动画
         
@@ -603,20 +603,18 @@ class BaseModelVisualizer:
         frames: 动画的总帧数，如果为None则自动计算
         interval: 每帧间隔的毫秒数
         blit: 是否使用blit优化动画性能
-        auto_run: 启动后是否自动运行，默认为True
-        auto_close: 完成后是否自动关闭窗口，默认为True
         """
         # 添加调试信息
         print(f"[调试] 动画开始运行，interval={interval}ms")
         print(f"[调试] 最大训练步数: {self.max_steps}")
         print(f"[调试] 测试样本数量: {len(self.X_test) if self.X_test is not None else 0}")
-        print(f"[调试] 自动运行: {auto_run}, 自动关闭: {auto_close}")
+        print(f"[调试] 自动运行: {self.auto_run if hasattr(self, 'auto_run') else False}, 自动关闭: {self.auto_close if hasattr(self, 'auto_close') else True}")
         
         # 保存自动关闭设置
-        self._auto_close = auto_close
+        self._auto_close = self.auto_close if hasattr(self, 'auto_close') else True
         
         # 设置自动运行模式
-        if auto_run:
+        if hasattr(self, 'auto_run') and self.auto_run:
             self._manual_step_mode = False
             self._is_paused = False
             if hasattr(self, 'btn_play_pause'):

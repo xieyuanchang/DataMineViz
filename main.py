@@ -12,18 +12,18 @@ plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
 # ============== 系统全局配置 ==============
 # 1. 模型选择配置
 # MODEL_TYPE 可选值："decision_tree" 或 "logistic_regression"
-MODEL_TYPE = "decision_tree"  # 默认演示决策树模型
+MODEL_TYPE = "logistic_regression"  # 默认演示决策树模型
 # 2. 执行模式配置
 # AUTO_RUN 控制是否自动运行动画，无需手动点击"开始"按钮
 # True: 自动开始运行动画
 # False: 需要手动点击"开始"按钮启动
-AUTO_RUN = True
+AUTO_RUN = False
 
 # 3. 窗口控制配置
 # AUTO_CLOSE 控制预测完成后是否自动关闭窗口
 # True: 预测完成后自动关闭窗口
 # False: 预测完成后保持窗口打开，需要手动关闭
-AUTO_CLOSE = True
+AUTO_CLOSE = False
 
 # 4. 决策树特定配置
 # DECISION_TREE_MAX_DEPTH 决策树的最大深度
